@@ -1,5 +1,6 @@
 package com.kazmik.rapido.app.home;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
@@ -10,6 +11,8 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -17,24 +20,34 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
-import android.widget.EditText;
 import android.widget.Filter;
 import android.widget.Filterable;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
 import com.kazmik.rapido.app.R;
-import com.kazmik.rapido.app.utils.location_autocomplete.PlaceAPI;
-import com.kazmik.rapido.app.utils.location_autocomplete.PlaceResultItem;
+import com.kazmik.rapido.app.api_interface.Directions_API;
+import com.kazmik.rapido.app.api_response.directions.Directions_Response;
+import com.kazmik.rapido.app.api_response.directions.Routes_Content;
+import com.kazmik.rapido.app.utils.places.PlaceAPI;
+import com.kazmik.rapido.app.utils.places.PlaceResultItem;
+import com.kazmik.rapido.app.utils.retrofit_wrapper.RetrofitWrapper;
 import com.kazmik.rapido.app.utils.toolbar.colorizeToolbar;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
 
 public class Home extends AppCompatActivity implements View.OnClickListener{
 
@@ -44,6 +57,8 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
     Handler fromThreadHandler,destinationThreadHandler;
     String TAG = Home.class.getSimpleName();
     PlaceResultItem startLocation,endLocation;
+    List<Routes_Content> possibleRoutes = new ArrayList<>();
+    RoutesAdapter routesAdapter;
 
     @Bind(R.id.home_nav_dc)
     LinearLayout home_nav_dc;
@@ -56,6 +71,15 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
 
     @Bind(R.id.find_btn)
     TextView find_btn;
+
+    @Bind(R.id.routes_progress)
+    ProgressBar routes_progress;
+
+    @Bind(R.id.routes_container)
+    LinearLayout routes_container;
+
+    @Bind(R.id.routes_recycler)
+    RecyclerView routes_recycler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,7 +111,9 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 // Get data associated with the specified position
                 // in the list (AdapterView)
-                startLocation = fromAdapter.resultList.get(position);
+                try {
+                    startLocation = fromAdapter.resultList.get(position);
+                }catch (Exception e){}
             }
         });
         if (fromThreadHandler == null) {
@@ -162,7 +188,9 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 // Get data associated with the specified position
                 // in the list (AdapterView)
-                endLocation = destinationAdapter.resultList.get(position);
+                try {
+                    endLocation = destinationAdapter.resultList.get(position);
+                }catch (Exception e){}
             }
         });
         if (destinationThreadHandler == null) {
@@ -235,19 +263,67 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
         find_btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                find_routes();
+                routes_container.setVisibility(View.GONE);
+                routes_progress.setVisibility(View.VISIBLE);
+                hideSoftKeyboard(Home.this);
+                getRoutes();
             }
         });
 
+        routesAdapter = new RoutesAdapter();
+        routes_recycler.setLayoutManager(new LinearLayoutManager(Home.this, LinearLayoutManager.VERTICAL, false));
+        routes_recycler.setAdapter(routesAdapter);
 
+        routes_container.setVisibility(View.GONE);
+        routes_progress.setVisibility(View.GONE);
 
         home_nav_dc.setOnClickListener(this);
     }
 
-    void find_routes()
+    void getRoutes()
     {
-        Log.d("from location",startLocation.getTitle()+startLocation.getPlace_id());
-        Log.d("end location",endLocation.getTitle()+endLocation.getPlace_id());
+        String origin = "place_id:"+startLocation.getPlace_id();
+        String destination = "place_id:"+endLocation.getPlace_id();
+        String api_key = getString(R.string.maps_api_key);
+
+        Log.d("origin",origin);
+        Log.d("destination",destination);
+
+        Retrofit retrofit = RetrofitWrapper.getRetrofitRequest(this);
+        Directions_API api = retrofit.create(Directions_API.class);
+        Call<Directions_Response> call = api.getRoutes(api_key,origin,destination,"true");
+        call.enqueue(new Callback<Directions_Response>() {
+            @Override
+            public void onResponse(Response<Directions_Response> response) {
+                Directions_Response data = response.body();
+                if(data!=null)
+                {
+                    if(data.getStatus().equals("OK"))
+                    {
+                        possibleRoutes = data.getRoutes();
+                        routes_recycler.getAdapter().notifyDataSetChanged();
+                        routes_container.setVisibility(View.VISIBLE);
+                        routes_progress.setVisibility(View.GONE);
+                    }else{
+                        Log.d("directions error",data.getError_message());
+                    }
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable t) {
+                t.printStackTrace();
+            }
+        });
+
+    }
+
+    public static void hideSoftKeyboard(Activity activity) {
+        InputMethodManager inputMethodManager =
+                (InputMethodManager) activity.getSystemService(
+                        Activity.INPUT_METHOD_SERVICE);
+        inputMethodManager.hideSoftInputFromWindow(
+                activity.getCurrentFocus().getWindowToken(), 0);
     }
 
     @Override
@@ -292,8 +368,10 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                 view = inflater.inflate(R.layout.autocomplete_google_logo, null);
 
             if (position != (resultList.size() - 1)) {
-                TextView autocompleteTextView = (TextView) view.findViewById(R.id.autocompleteText);
-                autocompleteTextView.setText(resultList.get(position).getTitle());
+                try {
+                    TextView autocompleteTextView = (TextView) view.findViewById(R.id.autocompleteText);
+                    autocompleteTextView.setText(resultList.get(position).getTitle());
+                }catch (Exception e){}
             }
 
             return view;
@@ -353,6 +431,42 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
             };
 
             return filter;
+        }
+    }
+
+    class RoutesAdapter extends RecyclerView.Adapter<RoutesAdapter.Holder>
+    {
+
+        class Holder extends RecyclerView.ViewHolder{
+
+            @Bind(R.id.route_item_name)
+            TextView item_name;
+
+            public Holder(View itemView) {
+                super(itemView);
+                ButterKnife.bind(this,itemView);
+            }
+        }
+
+
+        @Override
+        public Holder onCreateViewHolder(ViewGroup parent, int viewType) {
+            View view = LayoutInflater.from(Home.this).inflate(R.layout.routes_item, parent , false);
+            return new Holder(view);
+        }
+
+        @Override
+        public void onBindViewHolder(Holder holder, int position) {
+
+            Routes_Content content = possibleRoutes.get(position);
+
+            holder.item_name.setText("Via "+content.getSummary());
+
+        }
+
+        @Override
+        public int getItemCount() {
+            return possibleRoutes.size();
         }
     }
 }

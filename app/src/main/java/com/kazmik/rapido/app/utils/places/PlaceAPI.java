@@ -1,4 +1,4 @@
-package com.kazmik.rapido.app.utils.location_autocomplete;
+package com.kazmik.rapido.app.utils.places;
 
 import android.util.Log;
 
@@ -25,7 +25,7 @@ public class PlaceAPI {
     private static final String TYPE_AUTOCOMPLETE = "/autocomplete";
     private static final String OUT_JSON = "/json";
 
-    private static final String API_KEY = "AIzaSyCVdqT5fhW6SxgGDRz4ZkXspY2W-Wj1_Cc";
+    private static final String API_KEY = "AIzaSyDyj5hzEvwNXMHwGGl5jV1LCp5TqpwJRsY";
 
     public ArrayList<PlaceResultItem> autocomplete (String input) {
         ArrayList<PlaceResultItem> resultList = null;

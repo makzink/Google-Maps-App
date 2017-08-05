@@ -1,4 +1,4 @@
-package com.kazmik.rapido.app.utils.location_autocomplete;
+package com.kazmik.rapido.app.utils.places;
 
 /**
  * Created by kazmik on 24/04/17.
