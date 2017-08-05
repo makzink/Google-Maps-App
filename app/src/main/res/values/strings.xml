@@ -1,3 +1,7 @@
 <resources>
-    <string name="app_name">Rapido Maps</string>
+    <string name="app_name">Rapido Path Finder</string>
+
+
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
 </resources>

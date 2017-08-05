@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <dimen name="ts1">20sp</dimen>
+    <dimen name="ts2">16sp</dimen>
+    <dimen name="ts3">14sp</dimen>
+    <dimen name="ts4">12sp</dimen>
+
+</resources>
