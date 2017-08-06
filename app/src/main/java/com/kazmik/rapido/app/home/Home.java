@@ -1,11 +1,16 @@
 package com.kazmik.rapido.app.home;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Message;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.view.GravityCompat;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
@@ -29,11 +34,27 @@ import android.widget.Filterable;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.google.android.gms.maps.CameraUpdateFactory;
+import com.google.android.gms.maps.GoogleMap;
+import com.google.android.gms.maps.MapFragment;
+import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.kazmik.rapido.app.R;
 import com.kazmik.rapido.app.api_interface.Directions_API;
+import com.kazmik.rapido.app.api_interface.Places_API;
 import com.kazmik.rapido.app.api_response.directions.Directions_Response;
 import com.kazmik.rapido.app.api_response.directions.Routes_Content;
+import com.kazmik.rapido.app.api_response.directions.Steps_Content;
+import com.kazmik.rapido.app.api_response.places.Places_Response;
+import com.kazmik.rapido.app.api_response.places.Predication_Structured_data;
+import com.kazmik.rapido.app.api_response.places.Predictions_data;
 import com.kazmik.rapido.app.utils.places.PlaceAPI;
 import com.kazmik.rapido.app.utils.places.PlaceResultItem;
 import com.kazmik.rapido.app.utils.retrofit_wrapper.RetrofitWrapper;
@@ -49,16 +70,19 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import retrofit2.Retrofit;
 
-public class Home extends AppCompatActivity implements View.OnClickListener{
+public class Home extends AppCompatActivity implements View.OnClickListener, OnMapReadyCallback {
 
     colorizeToolbar colorize;
-    PlacesAutoCompleteAdapter fromAdapter,destinationAdapter;
-    HandlerThread fromHandlerThread,destinationHandlerThread;
-    Handler fromThreadHandler,destinationThreadHandler;
+    PlacesAutoCompleteAdapter fromAdapter, destinationAdapter;
+    HandlerThread fromHandlerThread, destinationHandlerThread;
+    Handler fromThreadHandler, destinationThreadHandler;
     String TAG = Home.class.getSimpleName();
-    PlaceResultItem startLocation,endLocation;
+    PlaceResultItem startLocation, endLocation;
     List<Routes_Content> possibleRoutes = new ArrayList<>();
     RoutesAdapter routesAdapter;
+    private GoogleMap routesMap;
+    MapFragment mapFragment;
+    private static final int  REQUEST_LOCATION = 99;
 
     @Bind(R.id.home_nav_dc)
     LinearLayout home_nav_dc;
@@ -102,10 +126,12 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
         toggle.syncState();
 
         ButterKnife.bind(this);
+        MapFragment mapFragment = (MapFragment) getFragmentManager()
+                .findFragmentById(R.id.routes_map);
+        mapFragment.getMapAsync(this);
 
-
-        fromAdapter = new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item,0);
-        from_et.setAdapter(new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item,0));
+        fromAdapter = new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 0);
+        from_et.setAdapter(new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 0));
         from_et.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -113,7 +139,8 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                 // in the list (AdapterView)
                 try {
                     startLocation = fromAdapter.resultList.get(position);
-                }catch (Exception e){}
+                } catch (Exception e) {
+                }
             }
         });
         if (fromThreadHandler == null) {
@@ -132,8 +159,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
 
                         if (results != null && results.size() > 0) {
                             fromAdapter.notifyDataSetChanged();
-                        }
-                        else {
+                        } else {
                             fromAdapter.notifyDataSetInvalidated();
                         }
                     }
@@ -163,7 +189,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                         fromAdapter.resultList = fromAdapter.mPlaceAPI.autocomplete(value);
 
                         // Footer
-                        if (fromAdapter.resultList!=null && fromAdapter.resultList.size() > 0) {
+                        if (fromAdapter.resultList != null && fromAdapter.resultList.size() > 0) {
                             PlaceResultItem item = new PlaceResultItem();
                             item.setCity("footer");
                             item.setTitle("footer");
@@ -181,8 +207,8 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
             }
         });
 
-        destinationAdapter = new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item,1);
-        destination_et.setAdapter(new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item,1));
+        destinationAdapter = new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 1);
+        destination_et.setAdapter(new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 1));
         destination_et.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -190,7 +216,8 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                 // in the list (AdapterView)
                 try {
                     endLocation = destinationAdapter.resultList.get(position);
-                }catch (Exception e){}
+                } catch (Exception e) {
+                }
             }
         });
         if (destinationThreadHandler == null) {
@@ -208,8 +235,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                         ArrayList<PlaceResultItem> results = destinationAdapter.resultList;
                         if (results != null && results.size() > 0) {
                             destinationAdapter.notifyDataSetChanged();
-                        }
-                        else {
+                        } else {
                             destinationAdapter.notifyDataSetInvalidated();
                         }
                     }
@@ -240,7 +266,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                         destinationAdapter.resultList = destinationAdapter.mPlaceAPI.autocomplete(value);
 
                         // Footer
-                        if (destinationAdapter.resultList!=null && destinationAdapter.resultList.size() > 0) {
+                        if (destinationAdapter.resultList != null && destinationAdapter.resultList.size() > 0) {
                             PlaceResultItem item = new PlaceResultItem();
                             item.setCity("footer");
                             item.setTitle("footer");
@@ -280,32 +306,36 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
         home_nav_dc.setOnClickListener(this);
     }
 
-    void getRoutes()
-    {
-        String origin = "place_id:"+startLocation.getPlace_id();
-        String destination = "place_id:"+endLocation.getPlace_id();
-        String api_key = getString(R.string.maps_api_key);
+    void getRoutes() {
 
-        Log.d("origin",origin);
-        Log.d("destination",destination);
+        boolean hasPermission = (ContextCompat.checkSelfPermission(Home.this,
+                Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(Home.this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
+        if (!hasPermission) {
+            ActivityCompat.requestPermissions(Home.this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},
+                    REQUEST_LOCATION);
+            routes_container.setVisibility(View.GONE);
+            routes_progress.setVisibility(View.GONE);
+            return;
+        }
+
+        String origin = "place_id:" + startLocation.getPlace_id();
+        String destination = "place_id:" + endLocation.getPlace_id();
+        String api_key = getString(R.string.maps_api_key);
 
         Retrofit retrofit = RetrofitWrapper.getRetrofitRequest(this);
         Directions_API api = retrofit.create(Directions_API.class);
-        Call<Directions_Response> call = api.getRoutes(api_key,origin,destination,"true");
+        Call<Directions_Response> call = api.getRoutes(api_key, origin, destination, "true");
         call.enqueue(new Callback<Directions_Response>() {
             @Override
             public void onResponse(Response<Directions_Response> response) {
                 Directions_Response data = response.body();
-                if(data!=null)
-                {
-                    if(data.getStatus().equals("OK"))
-                    {
-                        possibleRoutes = data.getRoutes();
-                        routes_recycler.getAdapter().notifyDataSetChanged();
-                        routes_container.setVisibility(View.VISIBLE);
-                        routes_progress.setVisibility(View.GONE);
-                    }else{
-                        Log.d("directions error",data.getError_message());
+                if (data != null) {
+                    if (data.getStatus().equals("OK")) {
+                        renderRoutes(data.getRoutes());
+                    } else {
+                        Log.d("directions error", data.getError_message());
                     }
                 }
             }
@@ -316,6 +346,86 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
             }
         });
 
+    }
+
+    void renderRoutes(List<Routes_Content> routes)
+    {
+        possibleRoutes = routes;
+        routes_recycler.getAdapter().notifyDataSetChanged();
+
+        ArrayList points = null;
+        PolylineOptions lineOptions = null;
+        MarkerOptions markerOptions = new MarkerOptions();
+        Polyline polyline = null;
+
+        if (routesMap!=null) {
+//            LatLng startLatLng = new LatLng(routes.get(0).getLegs().get(0).getStart_location().getLat(),routes.get(0).getLegs().get(0).getStart_location().getLng());
+//            Marker startMarker = routesMap.addMarker(new MarkerOptions().position(startLatLng)
+//                    .title(routes.get(0).getLegs().get(0).getStart_address()));
+//            routesMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLatLng,15));
+//            routesMap.animateCamera(CameraUpdateFactory.zoomTo(15), 2000, null);
+//            // Zoom in, animating the camera.
+//            routesMap.animateCamera(CameraUpdateFactory.zoomIn());
+//
+//            LatLng endLatLng = new LatLng(routes.get(0).getLegs().get(0).getEnd_location().getLat(),routes.get(0).getLegs().get(0).getEnd_location().getLng());
+//            Marker endMarker = routesMap.addMarker(new MarkerOptions().position(endLatLng)
+//                    .title(routes.get(0).getLegs().get(0).getEnd_address()));
+
+            for (int i=0;i<routes.size();i++)
+            {
+                points = new ArrayList();
+                lineOptions = new PolylineOptions();
+                List<Steps_Content> steps = routes.get(0).getLegs().get(0).getSteps();
+
+                for (int j=0;j<steps.size();j++)
+                {
+                    double lat = steps.get(j).getStart_location().getLat();
+                    double lng = steps.get(j).getStart_location().getLng();
+                    LatLng position = new LatLng(lat, lng);
+                    points.add(position);
+                }
+
+                lineOptions.addAll(points);
+                lineOptions.width(12);
+                lineOptions.color(getResources().getColor(R.color.colorAccent));
+                lineOptions.geodesic(true);
+
+                polyline = routesMap.addPolyline(lineOptions);
+                polyline.setClickable(true);
+
+                zoomRoute(routesMap,points);
+            }
+
+        }
+
+        routesMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
+            @Override
+            public void onPolylineClick(Polyline polyline) {
+                Log.d("poly click",polyline.getPoints().toString());
+            }
+        });
+
+        routes_container.setVisibility(View.VISIBLE);
+        routes_progress.setVisibility(View.GONE);
+    }
+
+    public void zoomRoute(final GoogleMap googleMap, final List<LatLng> lstLatLngRoute) {
+
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (googleMap == null || lstLatLngRoute == null || lstLatLngRoute.isEmpty()) return;
+
+                LatLngBounds.Builder boundsBuilder = new LatLngBounds.Builder();
+                for (LatLng latLngPoint : lstLatLngRoute)
+                    boundsBuilder.include(latLngPoint);
+
+                int routePadding = 100;
+                LatLngBounds latLngBounds = boundsBuilder.build();
+
+                googleMap.moveCamera(CameraUpdateFactory.newLatLngBounds(latLngBounds, routePadding));
+            }
+        }, 500);
     }
 
     public static void hideSoftKeyboard(Activity activity) {
@@ -331,12 +441,27 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.home_drawer_layout);
 
 
-        switch (view.getId())
-        {
+        switch (view.getId()) {
             case R.id.home_nav_dc:
                 break;
         }
         drawer.closeDrawer(GravityCompat.START);
+    }
+
+    @Override
+    public void onMapReady(GoogleMap map) {
+        routesMap = map;
+        map.setMapType(GoogleMap.MAP_TYPE_TERRAIN);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }else{
+            Log.d("maps location","location not enabled");
+        }
+        map.setMyLocationEnabled(true);
+        map.setTrafficEnabled(true);
+        map.setIndoorEnabled(true);
+        map.setBuildingsEnabled(true);
+        map.getUiSettings().setZoomControlsEnabled(true);
     }
 
     class PlacesAutoCompleteAdapter extends ArrayAdapter<String> implements Filterable {
@@ -409,7 +534,6 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
                         PlaceResultItem item = new PlaceResultItem();
                         item.setCity("footer");
                         item.setTitle("footer");
-                        item.setPlace_id("footer");
                         resultList.add(item);
 
                         filterResults.values = resultList;
@@ -467,6 +591,22 @@ public class Home extends AppCompatActivity implements View.OnClickListener{
         @Override
         public int getItemCount() {
             return possibleRoutes.size();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode) {
+            case REQUEST_LOCATION: {
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                {
+                    getRoutes();
+                } else
+                {
+                    Toast.makeText(Home.this, "You haven't given permission for the app to use location. Please grant permission.", Toast.LENGTH_LONG).show();
+                }
+            }
         }
     }
 }

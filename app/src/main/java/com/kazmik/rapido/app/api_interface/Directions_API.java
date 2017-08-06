@@ -14,7 +14,7 @@ import retrofit2.http.Query;
 public interface Directions_API {
 
 
-    @GET("directions/json?")
+    @GET("directions/json")
     Call<Directions_Response> getRoutes(@Query("key")String api_key,@Query("origin")String origin,@Query("destination")String destination,@Query("alternatives")String alternatives);
 
 }
