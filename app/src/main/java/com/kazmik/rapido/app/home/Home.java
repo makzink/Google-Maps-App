@@ -408,7 +408,15 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
             {
                 points = new ArrayList();
                 lineOptions = new PolylineOptions();
-                List<Steps_Content> steps = routes.get(0).getLegs().get(0).getSteps();
+                List<Steps_Content> steps = new ArrayList<>();
+
+                for (int k=0;k<routes.get(i).getLegs().size();k++)
+                {
+                    for (int l=0;l<routes.get(i).getLegs().get(k).getSteps().size();l++)
+                    {
+                        steps.add(routes.get(i).getLegs().get(k).getSteps().get(l));
+                    }
+                }
 
                 for (int j=0;j<steps.size();j++)
                 {
@@ -416,14 +424,14 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
                     double lng = steps.get(j).getStart_location().getLng();
                     LatLng position = new LatLng(lat, lng);
                     points.add(position);
+                    lineOptions.add(position);
                 }
 
-                lineOptions.addAll(points);
                 lineOptions.width(12);
                 lineOptions.color(getResources().getColor(R.color.colorAccent));
-//                lineOptions.geodesic(true);
 
                 polyline = routesMap.addPolyline(lineOptions);
+                polyline.setTag(routes.get(i).getSummary());
                 polyline.setClickable(true);
                 polyline.setVisible(true);
                 polyline.setZIndex(30);

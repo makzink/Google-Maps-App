@@ -262,7 +262,7 @@
                     android:id="@+id/home_nav_dc_text"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Home"
+                    android:text="Find Route"
                     android:textColor="@color/text_pri"
                     android:textSize="@dimen/ts2"
                     android:padding="10dp"
