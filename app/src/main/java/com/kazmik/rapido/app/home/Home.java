@@ -48,13 +48,9 @@ import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.kazmik.rapido.app.R;
 import com.kazmik.rapido.app.api_interface.Directions_API;
-import com.kazmik.rapido.app.api_interface.Places_API;
 import com.kazmik.rapido.app.api_response.directions.Directions_Response;
 import com.kazmik.rapido.app.api_response.directions.Routes_Content;
 import com.kazmik.rapido.app.api_response.directions.Steps_Content;
-import com.kazmik.rapido.app.api_response.places.Places_Response;
-import com.kazmik.rapido.app.api_response.places.Predication_Structured_data;
-import com.kazmik.rapido.app.api_response.places.Predictions_data;
 import com.kazmik.rapido.app.utils.places.PlaceAPI;
 import com.kazmik.rapido.app.utils.places.PlaceResultItem;
 import com.kazmik.rapido.app.utils.retrofit_wrapper.RetrofitWrapper;
@@ -83,6 +79,9 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
     private GoogleMap routesMap;
     MapFragment mapFragment;
     private static final int  REQUEST_LOCATION = 99;
+    DirectionsFragment directionsFragment;
+    List<Polylines_Steps> possiblePolylines = new ArrayList<>();
+    List<Marker> markerList = new ArrayList<Marker>();
 
     @Bind(R.id.home_nav_dc)
     LinearLayout home_nav_dc;
@@ -129,6 +128,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         MapFragment mapFragment = (MapFragment) getFragmentManager()
                 .findFragmentById(R.id.routes_map);
         mapFragment.getMapAsync(this);
+
 
         fromAdapter = new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 0);
         from_et.setAdapter(new PlacesAutoCompleteAdapter(Home.this, R.layout.autocomplete_list_item, 0));
@@ -289,10 +289,7 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         find_btn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                routes_container.setVisibility(View.GONE);
-                routes_progress.setVisibility(View.VISIBLE);
-                hideSoftKeyboard(Home.this);
-                getRoutes();
+                find_routes();
             }
         });
 
@@ -304,6 +301,43 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         routes_progress.setVisibility(View.GONE);
 
         home_nav_dc.setOnClickListener(this);
+    }
+
+    void find_routes()
+    {
+
+        if(possiblePolylines!=null)
+        {
+            for (int i=0;i<possiblePolylines.size();i++)
+            {
+                possiblePolylines.get(i).getPolyline().remove();
+            }
+            possiblePolylines = new ArrayList<>();
+        }
+        if(markerList!=null)
+        {
+            for (int i=0;i<markerList.size();i++)
+            {
+                markerList.get(i).remove();
+            }
+            markerList = new ArrayList<>();
+        }
+
+        from_et.setError(null);
+        destination_et.setError(null);
+
+        if(startLocation==null || from_et.getText().toString().trim().equals(""))
+        {
+            from_et.setError("Please select a valid location");
+        }else if(endLocation==null || destination_et.getText().toString().trim().equals(""))
+        {
+            destination_et.setError("Please select a valid location");
+        }else{
+            routes_container.setVisibility(View.GONE);
+            routes_progress.setVisibility(View.VISIBLE);
+            hideSoftKeyboard(Home.this);
+            getRoutes();
+        }
     }
 
     void getRoutes() {
@@ -359,18 +393,17 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         Polyline polyline = null;
 
         if (routesMap!=null) {
-//            LatLng startLatLng = new LatLng(routes.get(0).getLegs().get(0).getStart_location().getLat(),routes.get(0).getLegs().get(0).getStart_location().getLng());
-//            Marker startMarker = routesMap.addMarker(new MarkerOptions().position(startLatLng)
-//                    .title(routes.get(0).getLegs().get(0).getStart_address()));
-//            routesMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLatLng,15));
-//            routesMap.animateCamera(CameraUpdateFactory.zoomTo(15), 2000, null);
-//            // Zoom in, animating the camera.
-//            routesMap.animateCamera(CameraUpdateFactory.zoomIn());
-//
-//            LatLng endLatLng = new LatLng(routes.get(0).getLegs().get(0).getEnd_location().getLat(),routes.get(0).getLegs().get(0).getEnd_location().getLng());
-//            Marker endMarker = routesMap.addMarker(new MarkerOptions().position(endLatLng)
-//                    .title(routes.get(0).getLegs().get(0).getEnd_address()));
+            LatLng startLatLng = new LatLng(routes.get(0).getLegs().get(0).getStart_location().getLat(),routes.get(0).getLegs().get(0).getStart_location().getLng());
+            Marker startMarker = routesMap.addMarker(new MarkerOptions().position(startLatLng)
+                    .title(routes.get(0).getLegs().get(0).getStart_address()));
+            markerList.add(startMarker);
 
+            LatLng endLatLng = new LatLng(routes.get(0).getLegs().get(0).getEnd_location().getLat(),routes.get(0).getLegs().get(0).getEnd_location().getLng());
+            Marker endMarker = routesMap.addMarker(new MarkerOptions().position(endLatLng)
+                    .title(routes.get(0).getLegs().get(0).getEnd_address()));
+            markerList.add(endMarker);
+
+            possiblePolylines = new ArrayList<>();
             for (int i=0;i<routes.size();i++)
             {
                 points = new ArrayList();
@@ -388,10 +421,16 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
                 lineOptions.addAll(points);
                 lineOptions.width(12);
                 lineOptions.color(getResources().getColor(R.color.colorAccent));
-                lineOptions.geodesic(true);
+//                lineOptions.geodesic(true);
 
                 polyline = routesMap.addPolyline(lineOptions);
                 polyline.setClickable(true);
+                polyline.setVisible(true);
+                polyline.setZIndex(30);
+                Polylines_Steps polylines_steps = new Polylines_Steps();
+                polylines_steps.setPolyline(polyline);
+                polylines_steps.setRoute(routes.get(i));
+                possiblePolylines.add(polylines_steps);
 
                 zoomRoute(routesMap,points);
             }
@@ -401,12 +440,24 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         routesMap.setOnPolylineClickListener(new GoogleMap.OnPolylineClickListener() {
             @Override
             public void onPolylineClick(Polyline polyline) {
-                Log.d("poly click",polyline.getPoints().toString());
+                for (int i=0;i<possiblePolylines.size();i++)
+                {
+                    if(possiblePolylines.get(i).getPolyline().getId().equals(polyline.getId()))
+                    {
+                        show_directions(possiblePolylines.get(i).getRoute());
+                    }
+                }
             }
         });
 
         routes_container.setVisibility(View.VISIBLE);
         routes_progress.setVisibility(View.GONE);
+    }
+
+    void show_directions(Routes_Content content)
+    {
+        directionsFragment = new DirectionsFragment(content);
+        directionsFragment.show(getSupportFragmentManager(), directionsFragment.getTag());
     }
 
     public void zoomRoute(final GoogleMap googleMap, final List<LatLng> lstLatLngRoute) {
@@ -582,10 +633,16 @@ public class Home extends AppCompatActivity implements View.OnClickListener, OnM
         @Override
         public void onBindViewHolder(Holder holder, int position) {
 
-            Routes_Content content = possibleRoutes.get(position);
+            final Routes_Content content = possibleRoutes.get(position);
 
             holder.item_name.setText("Via "+content.getSummary());
 
+            holder.itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    show_directions(content);
+                }
+            });
         }
 
         @Override
